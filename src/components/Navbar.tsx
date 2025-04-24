@@ -6,7 +6,6 @@ export default function Navbar() {
       <Link to={"/dashboard"}>Dashboard</Link>
       <Link to={'/portfolios'}>Portfolio</Link>
       <Link to={'/feedback'}>Feedback</Link>
-      <Link to={'/admin'}>Admin</Link>
     </nav>
   )
 }
