@@ -1,4 +1,6 @@
+// Full React component using grouped API instead of flat stocks
 import { useEffect, useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -17,7 +19,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Trash2, Pencil } from 'lucide-react'
+import { Trash2, Pencil, ChevronDown, ChevronUp } from 'lucide-react'
 import {
   LineChart,
   Line,
@@ -35,21 +37,31 @@ interface Portfolio {
   name: string
 }
 
-interface Stock {
+interface StockLot {
   id: number
-  stock_symbol: string
   purchase_price: number
-  current_price: number
-  profit_loss: number
   purchase_date: string
-  shares?: number
+  shares: number
+  current_price: number
+  current_value: number
+  invested_value: number
+  profit_loss: number
+}
+
+interface GroupedStock {
+  symbol: string
+  total_shares: number
+  total_invested: number
+  total_current: number
+  total_pl: number
+  lots: StockLot[]
 }
 
 export default function PortfolioManager() {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([])
   const [selectedId, setSelectedId] = useState<string>('')
   const [selectedName, setSelectedName] = useState<string>('')
-  const [stocks, setStocks] = useState<Stock[]>([])
+  const [stocks, setStocks] = useState<GroupedStock[]>([])
   const [error, setError] = useState('')
   const [form, setForm] = useState({
     stock_symbol: '',
@@ -57,33 +69,55 @@ export default function PortfolioManager() {
     purchase_date: '',
   })
   const [editStockId, setEditStockId] = useState<number | null>(null)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [growthData, setGrowthData] = useState<{ date: string; value: number }[]>([])
+  const navigate = useNavigate()
+  const { id } = useParams()
+
+  useEffect(() => {
+    if (selectedId) {
+      fetch(`/api/portfolio/${selectedId}/growth`)
+          .then((res) => res.json())
+          .then((data) => setGrowthData(data))
+          .catch(() => setError('Failed to load growth data'))
+    }
+  }, [selectedId])
 
   useEffect(() => {
     fetch('/api/portfolios')
         .then((res) => res.json())
         .then((data) => {
           setPortfolios(data)
-          if (data.length > 0) {
-            setSelectedId(String(data[0].id))
-            setSelectedName(data[0].name)
+
+          const exists = data.find((p: { id: never }) => String(p.id) === id)
+          const fallback = data[0]
+
+          if (!selectedId && exists) {
+            setSelectedId(String(exists.id))
+            setSelectedName(exists.name)
+          } else if (!selectedId && fallback) {
+            setSelectedId(String(fallback.id))
+            setSelectedName(fallback.name)
+            navigate(`/portfolios/${fallback.id}`)
           }
         })
         .catch(() => setError('Failed to load portfolios'))
-  }, [])
+  }, [id, navigate, selectedId])
+
 
   useEffect(() => {
     if (selectedId) {
       const p = portfolios.find((p) => String(p.id) === selectedId)
       setSelectedName(p?.name || '')
-      fetch(`/api/portfolios/${selectedId}`)
+      fetch(`/api/portfolios/${selectedId}/stocks/grouped`)
           .then((res) => res.json())
           .then((data) => setStocks(data))
           .catch(() => setError('Failed to load stocks'))
     }
-  }, [selectedId])
+  }, [portfolios, selectedId])
 
   const refreshPortfolio = async () => {
-    const data = await fetch(`/api/portfolios/${selectedId}`).then((res) => res.json())
+    const data = await fetch(`/api/portfolios/${selectedId}/stocks/grouped`).then((res) => res.json())
     setStocks(data)
   }
 
@@ -117,6 +151,7 @@ export default function PortfolioManager() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        stock_symbol: form.stock_symbol,
         purchase_price: parseFloat(form.purchase_price),
         purchase_date: form.purchase_date,
       }),
@@ -128,16 +163,23 @@ export default function PortfolioManager() {
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A28CF0', '#E74C3C']
   const pieData = stocks.map((s) => ({
-    name: s.stock_symbol,
-    value: (s.shares || 1) * s.current_price,
+    name: s.symbol,
+    value: s.total_current,
   }))
+
+  const toggleExpand = (symbol: string) => {
+    setExpanded((prev) => ({ ...prev, [symbol]: !prev[symbol] }))
+  }
 
   return (
       <div className="p-6 max-w-7xl mx-auto space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">Select Portfolio</h1>
-          <Select value={selectedId} onValueChange={setSelectedId}>
-            <SelectTrigger className="w-60">
+          <Select value={selectedId} onValueChange={(val) => {
+            setSelectedId(val)
+            navigate(`/portfolios/${val}`)
+          }}>
+          <SelectTrigger className="w-60">
               <SelectValue placeholder="Choose a portfolio" />
             </SelectTrigger>
             <SelectContent>
@@ -154,67 +196,82 @@ export default function PortfolioManager() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card>
-            <CardContent className="p-4 space-y-2">
+            <CardContent className="p-4 space-y-2 max-h-[400px] overflow-y-auto">
               {stocks.length === 0 ? (
                   <p>Portfolio content for "{selectedName}" would appear here.</p>
               ) : (
-                  <ul className="space-y-2">
-                    {stocks.map((stock) => (
-                        <li key={stock.id} className="flex justify-between items-center border p-2 rounded">
-                          <div className="flex flex-col">
-                            <span className="font-medium">{stock.stock_symbol}</span>
-                            <span className="text-xs text-gray-500">
-                        Buy: ${stock.purchase_price} | Current: ${stock.current_price} | P/L: ${stock.profit_loss}
+                  stocks.map((group) => (
+                      <div key={group.symbol} className="border rounded p-2">
+                        <div className="flex justify-between cursor-pointer" onClick={() => toggleExpand(group.symbol)}>
+                          <div>
+                            <span className="font-bold">{group.symbol}</span>
+                            <span className="ml-2 text-sm text-gray-600">
+                        Shares: {group.total_shares} | Current: ${group.total_current.toFixed(2)} | P/L: ${group.total_pl.toFixed(2)}
                       </span>
                           </div>
-                          <div className="flex gap-2">
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => {
-                                      setEditStockId(stock.id)
-                                      setForm({
-                                        stock_symbol: stock.stock_symbol,
-                                        purchase_price: String(stock.purchase_price),
-                                        purchase_date: stock.purchase_date,
-                                      })
-                                    }}
-                                >
-                                  <Pencil className="w-4 h-4" />
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Edit Stock</DialogTitle>
-                                </DialogHeader>
-                                <div className="space-y-3">
-                                  <Input
-                                      name="purchase_price"
-                                      type="number"
-                                      value={form.purchase_price}
-                                      onChange={(e) => setForm({ ...form, purchase_price: e.target.value })}
-                                  />
-                                  <Input
-                                      name="purchase_date"
-                                      type="date"
-                                      value={form.purchase_date}
-                                      onChange={(e) => setForm({ ...form, purchase_date: e.target.value })}
-                                  />
-                                </div>
-                                <DialogFooter>
-                                  <Button onClick={handleEditStock}>Save</Button>
-                                </DialogFooter>
-                              </DialogContent>
-                            </Dialog>
-                            <Button variant="ghost" size="icon" onClick={() => handleDeleteStock(stock.id)}>
-                              <Trash2 className="w-4 h-4 text-red-500" />
-                            </Button>
-                          </div>
-                        </li>
-                    ))}
-                  </ul>
+                          {expanded[group.symbol] ? <ChevronUp /> : <ChevronDown />}
+                        </div>
+                        {expanded[group.symbol] && (
+                            <ul className="mt-2 space-y-2 text-sm">
+                              {group.lots.map((lot) => (
+                                  <li key={lot.id} className="border-t pt-2">
+                                    <div>
+                                      Buy on {lot.purchase_date} → {lot.shares} shares @ ${lot.purchase_price}
+                                    </div>
+                                    <div className="text-gray-600">
+                                      Current share price: ${lot.current_price.toFixed(2)}| Buy: ${lot.purchase_price.toFixed(2)} | Value: ${lot.current_value.toFixed(2)} | P/L: ${lot.profit_loss.toFixed(2)}
+                                    </div>
+                                    <div className="flex gap-2 mt-1">
+                                      <Dialog>
+                                        <DialogTrigger asChild>
+                                          <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => {
+                                                setEditStockId(lot.id)
+                                                setForm({
+                                                  stock_symbol: group.symbol,
+                                                  purchase_price: String(lot.purchase_price),
+                                                  purchase_date: lot.purchase_date,
+                                                })
+                                              }}
+                                          >
+                                            <Pencil className="w-4 h-4" />
+                                          </Button>
+                                        </DialogTrigger>
+                                        <DialogContent>
+                                          <DialogHeader>
+                                            <DialogTitle>Edit Stock</DialogTitle>
+                                          </DialogHeader>
+                                          <div className="space-y-3">
+                                            <Input
+                                                name="purchase_price"
+                                                type="number"
+                                                value={form.purchase_price}
+                                                onChange={(e) => setForm({ ...form, purchase_price: e.target.value })}
+                                            />
+                                            <Input
+                                                name="purchase_date"
+                                                type="date"
+                                                value={form.purchase_date}
+                                                onChange={(e) => setForm({ ...form, purchase_date: e.target.value })}
+                                            />
+                                          </div>
+                                          <DialogFooter>
+                                            <Button onClick={handleEditStock}>Save</Button>
+                                          </DialogFooter>
+                                        </DialogContent>
+                                      </Dialog>
+                                      <Button variant="ghost" size="icon" onClick={() => handleDeleteStock(lot.id)}>
+                                        <Trash2 className="w-4 h-4 text-red-500" />
+                                      </Button>
+                                    </div>
+                                  </li>
+                              ))}
+                            </ul>
+                        )}
+                      </div>
+                  ))
               )}
             </CardContent>
           </Card>
@@ -273,13 +330,8 @@ export default function PortfolioManager() {
           <CardContent className="p-4">
             <h2 className="font-semibold mb-2">Portfolio Growth</h2>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart
-                  data={stocks.map((s) => ({
-                    name: s.stock_symbol,
-                    value: parseFloat(s.current_price as never),
-                  }))}
-              >
-                <XAxis dataKey="name" />
+              <LineChart data={growthData}>
+                <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip />
                 <Line type="monotone" dataKey="value" stroke="#8884d8" strokeWidth={2} />
