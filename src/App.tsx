@@ -5,7 +5,6 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Portfolio from './pages/Portfolio'
 import Feedback from './pages/Feedback'
-import Admin from './pages/Admin'
 import NotFound from './pages/NotFound.tsx'
 import PortfolioDetailLayout from '@/pages/PortfolioDetail.tsx'
 import PredictionsPage from "@/pages/Predictions.tsx";
@@ -21,7 +20,6 @@ export default function App() {
         <Route path="portfolios/:id" element={<PortfolioDetailLayout />} />
         <Route path="predictions" element={<PredictionsPage />} />
         <Route path="feedback" element={<Feedback />} />
-        <Route path="admin" element={<Admin />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

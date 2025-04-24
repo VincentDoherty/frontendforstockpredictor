@@ -60,7 +60,7 @@ export default function PredictionsPage() {
                 const predData = await predRes.json()
                 setPredictions(predData.predicted)
             }
-        } catch (e) {
+        } catch {
             setError('Failed to fetch predictions')
         } finally {
             setLoading(false)
