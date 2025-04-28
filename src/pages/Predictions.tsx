@@ -86,6 +86,7 @@ export default function PredictionsPage() {
     return (
         <div className="p-6 max-w-5xl mx-auto space-y-6">
             <form onSubmit={handleSubmit} className="flex gap-2">
+                <h3 className="text-xs">Enter a stock symbol and search (e.g AAPL, TSLA, GOOGL)</h3>
                 <Input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} placeholder="Enter Stock Symbol (e.g. AAPL)" />
                 <Button type="submit">Get Predictions</Button>
             </form>
