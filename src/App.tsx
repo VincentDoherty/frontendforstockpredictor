@@ -8,20 +8,32 @@ import Feedback from './pages/Feedback'
 import NotFound from './pages/NotFound.tsx'
 import PortfolioDetailLayout from '@/pages/PortfolioDetail.tsx'
 import PredictionsPage from "@/pages/Predictions.tsx";
+import Goals from "@/pages/Goals.tsx";
+import RiskProfile from "@/pages/RiskProfile.tsx";
+import LandingPage from "@/pages/Landing.tsx";
+import Logout from "@/pages/Logout.tsx";
+import {Toaster} from "sonner";
+import ProtectedRoute from '@/components/ProtectedRoute'
+
+
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Layout />}>
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="login" element={<Login />} />
-        <Route path="register" element={<Register />} />
-        <Route path="portfolios" element={<Portfolio />} />
-        <Route path="portfolios/:id" element={<PortfolioDetailLayout />} />
-        <Route path="predictions" element={<PredictionsPage />} />
-        <Route path="feedback" element={<Feedback />} />
-        <Route path="*" element={<NotFound />} />
-      </Route>
-    </Routes>
+      <><Toaster/><Routes>
+        <Route path="/" element={<Layout/>}>
+          <Route index element={<LandingPage/>}/>
+          <Route path="dashboard" element={<ProtectedRoute><Dashboard/></ProtectedRoute>} />
+          <Route path="login" element={<Login/>}/>
+          <Route path="register" element={<Register/>}/>
+          <Route path="portfolios" element={<ProtectedRoute><Portfolio/></ProtectedRoute>} />
+          <Route path="portfolios/:id" element={<ProtectedRoute><PortfolioDetailLayout/></ProtectedRoute>} />
+          <Route path="predictions" element={<ProtectedRoute><PredictionsPage/></ProtectedRoute>} />
+          <Route path="risk-profile" element={<ProtectedRoute><RiskProfile/></ProtectedRoute>} />
+          <Route path="goals" element={<ProtectedRoute><Goals/></ProtectedRoute>} />
+          <Route path="feedback" element={<Feedback/>}/>
+          <Route path="logout" element={<Logout/>}/>
+          <Route path="*" element={<NotFound/>}/>
+        </Route>
+      </Routes></>
   )
 }
